@@ -1,7 +1,6 @@
 # Fine-Tuning Sentence Transformer Models: A Case Study
 
-
-
+Check Out Medium Article- https://medium.com/@ujjalkumarmaity1998/fine-tuning-sentence-transformer-models-a-case-study-148e32f09bd5
 
 
 
