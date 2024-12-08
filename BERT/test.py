@@ -16,7 +16,7 @@ class TestCustomBert(unittest.TestCase):
         custom_model.eval()
         
         hf_logist = hf_model(**x)
-        cs_logist = hf_model(**x)
+        cs_logist = custom_model(**x)
 
         self.assertTrue(torch.allclose(hf_logist["last_hidden_state"],cs_logist["last_hidden_state"]))
         self.assertTrue(torch.allclose(hf_logist["pooler_output"],cs_logist["pooler_output"]))
