@@ -62,19 +62,16 @@ class NNModel(object):
         m = X.shape[0]
 
         for layer in range(len(self.weights) - 1, -1, -1):
-            # print(self.activations[layer].shape,dA.shape)
             dw = np.dot(self.activations[layer].T, dA) / m
             db = np.sum(dA, axis=0, keepdims=True) / m
             self.gradient.insert(0, np.linalg.norm(dw))
 
             if layer > 0:
-                # print(dA.shape, self.weights[layer].shape)
                 dA = np.dot(dA, self.weights[layer].T)
                 dA = dA * self.relu_derivative(self.activations[layer])
 
             self.weights[layer] -= learning_rate * dw
             self.biases[layer] -= learning_rate * db
-        # print(self.gradient)
         return self.gradient
     
     def relu(self, x: np.ndarray) -> np.ndarray:
