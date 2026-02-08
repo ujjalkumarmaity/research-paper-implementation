@@ -19,18 +19,18 @@ from data import M3DocragDataSet
 
 
 class DocEmbedding:
-    def __init__(self, dataset, retrive_model_device_map = 'cuda:0'):
-        self.model_name = 'vidore/colpali-v1.2'
-        self.vector_search_service:VectorSearchFaiss = VectorSearchFaiss()
+    vector_search_service:VectorSearchFaiss = None
+    def __init__(self, dataset, retrieve_model_device_map = 'cuda:0'):
+        self.model_name = cfg.COLPALI_MODEL# 'vidore/colpali-v1.2'
         self.dataset: HfDataset = dataset
-        self.retrive_model_device_map = retrive_model_device_map
+        self.retrieve_model_device_map = retrieve_model_device_map
 
     def load_embedding_model(self):
         """ textual query q and page images P are projected into a shared multi-modal embedding space using ColPali """
         self.retrieval_model = ColPali.from_pretrained(
-            'vidore/colpaligemma-3b-mix-448-base',
+            cfg.COLPALI_BASE,
             torch_dtype=torch.bfloat16,
-            device_map=self.retrive_model_device_map
+            device_map=self.retrieve_model_device_map
         ).eval()
         self.retrieval_model.load_adapter(self.model_name)
         self.retrieval_processor = ColPaliProcessor.from_pretrained(self.model_name)
@@ -55,8 +55,7 @@ class DocEmbedding:
         
         self.vector_search_service.add_batch_embeddings(np.array(page_embeddings))
 
-    def retrive(self, query:str, k = 1)->List[HfDataset]:
-        # query = 'What is the projected global energy related co2 emission in 2030?'
+    def retrieve(self, query:str, k = 1)->List[HfDataset]:
         inputs = self.retrieval_processor.process_texts(query,)
         inputs = {k: v.to(self.retrieval_model.device) for k, v in inputs.items()}
 
@@ -64,20 +63,20 @@ class DocEmbedding:
             embeddings = self.retrieval_model(**inputs)
         embeddings = torch.mean(embeddings, dim=1).float().cpu().numpy()[0].reshape(1, -1)
         scores, indices = self.vector_search_service.search(embeddings=embeddings,k=k)
-        retrive_doc = [self.dataset[ind] for ind in indices]
+        retrieved_docs = [self.dataset[ind] for ind in indices]
         
-        return retrive_doc
+        return retrieved_docs
     
 class M3DOCRAG:
-    def __init__(self,qa_model_name = 'Qwen/Qwen2-VL-7B-Instruct-GPTQ-Int4', qa_model_device = 'cuda:1'):
-        self.qa_model_name = qa_model_name
+    def __init__(self,qa_model_device = 'cuda:1'):
+        self.qa_model_name = cfg.QA_MODEL
         self.qa_model_device = qa_model_device
 
     def load_qa_model(self):
         self.qa_processor = AutoProcessor.from_pretrained(self.qa_model_name)
         self.qa_model = AutoModelForImageTextToText.from_pretrained(self.qa_model_name,device_map=self.qa_model_device)
     
-    def format_chat_template(self,query:str, retrive_doc:List):
+    def format_chat_template(self,query:str, retrieved_docs:List):
         messages = [{
             "role": "system",
                     "content": """You are a document analyzer that ONLY gives two types of responses:
@@ -98,7 +97,7 @@ class M3DOCRAG:
                 *[{
                     "type": "image",
                     "image": doc['image']
-                } for doc in retrive_doc],
+                } for doc in retrieved_docs],
                 {
                     "type": "text",
                     "text": f"IMPORTANT: Give ONLY the exact answer found in these document pages for: {query}"
@@ -107,18 +106,18 @@ class M3DOCRAG:
         }]
         return messages
     
-    def generate_qa(self,query, retrive_doc):
-        message = self.format_chat_template(query=query, retrive_doc=retrive_doc)
+    def generate_qa(self,query, retrieved_docs):
+        message = self.format_chat_template(query=query, retrieved_docs=retrieved_docs)
         process_text = self.qa_processor.apply_chat_template(
                 message, 
                 tokenize=False, 
                 add_generation_prompt=True
             )
         inputs = self.qa_processor(
-            text=[process_text], images=[ind['image'] for ind in retrive_doc], padding=True, return_tensors="pt"
+            text=[process_text], images=[ind['image'] for ind in retrieved_docs], padding=True, return_tensors="pt"
         )
         inputs = inputs.to(self.qa_model.device)
-        output_ids = self.qa_model.generate(**inputs, max_new_tokens=128)
+        output_ids = self.qa_model.generate(**inputs, max_new_tokens=cfg.MAX_NEW_TOKENS)
         generated_ids = [
             output_ids[len(input_ids) :]
             for input_ids, output_ids in zip(inputs.input_ids, output_ids)
@@ -140,7 +139,7 @@ def main():
     m3_dataset = M3DocragDataSet(dataset_name=args.dataset)
     dataset = m3_dataset.load_data()
 
-    doc_embedding = DocEmbedding(dataset=dataset,retrive_model_device_map='cuda:0' )
+    doc_embedding = DocEmbedding(dataset=dataset,retrieve_model_device_map='cuda:0' )
     doc_embedding.load_embedding_model()
     doc_embedding.build_index()
 
@@ -150,8 +149,9 @@ def main():
         query = 'What is the primary goal of the Transformer model proposed in this paper?'
     else:
         query = ""
-    retrive_doc = doc_embedding.retrive(query=query, k=1)
-    output_text = m3rag.generate_qa(query=query,retrive_doc=retrive_doc)
+    retrieved_docs = doc_embedding.retrieve(query=query, k=1)
+    output_text = m3rag.generate_qa(query=query,retrieved_docs=retrieved_docs)
+    print(f"Answer: {output_text}")
         
 
 if __name__=='__main__':
