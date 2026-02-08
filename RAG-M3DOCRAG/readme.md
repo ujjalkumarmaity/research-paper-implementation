@@ -6,7 +6,8 @@ A Python implementation of document understanding using vision-language models f
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/m3docrag.git
+git clone https://github.com/ujjalkumarmaity/research-paper-implementation.git
+
 cd RAG-M3DOCRAG
 
 # Install dependencies
@@ -23,9 +24,6 @@ sudo apt-get install poppler-utils  # Ubuntu/Debian
 ```bash
 # Run with sample data
 python ./src/m3docrag.py --dataset sample
-
-# Run with DocVQA dataset
-python ./src/m3docrag.py --dataset DocVQA
 ```
 
 ## Requirements
