@@ -1,5 +1,7 @@
 # M3DOCRAG:Multi-modal Retrieval is What You Need for Multi-page Multi-document Understanding
 
+URL - https://arxiv.org/abs/2411.04952
+
 A Python implementation of document understanding using vision-language models for retrieval and question answering across multiple documents.
 
 ## Installation
