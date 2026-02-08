@@ -64,7 +64,7 @@ class DocEmbedding:
         embeddings = torch.mean(embeddings, dim=1).float().cpu().numpy()[0].reshape(1, -1)
         scores, indices = self.vector_search_service.search(embeddings=embeddings,k=k)
         retrieved_docs = [self.dataset[ind] for ind in indices]
-        
+        print(f"Retrieve Document Index - {indices}")
         return retrieved_docs
     
 class M3DOCRAG:
@@ -125,13 +125,45 @@ class M3DOCRAG:
         output_text = self.qa_processor.batch_decode(
             generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True
         )
-        print(f"answer - {output_text}")
+        # print(f"answer - {output_text}")
         return output_text
+
+    def process_query(self,doc_embedding:DocEmbedding, query:str):
+        retrieved_docs = doc_embedding.retrieve(query=query, k=1)
+        output_text = self.generate_qa(query=query,retrieved_docs=retrieved_docs)
+        return output_text
+
+    def m3docrag_chat(self,doc_embedding):
+        print("\n" + "="*80)
+        print("M3DOCRAG Chat")
+        print("="*80 + "\n")
+        
+        while True:
+            try:
+                query = input("\nYou: ").strip()
+                if query.lower() in ['exit', 'quit', 'q']:
+                    print("\nGoodbye!")
+                    break
+                if not query:
+                    continue
+                
+                # Get answer
+                answer = self.process_query(doc_embedding, query)
+                print("\nAssistant: ", end="", flush=True)
+                print(answer)
+                
+            except KeyboardInterrupt:
+                print("\n\nGoodbye!")
+                break
+            except Exception as e:
+                print(f"\nError: {e}")
+
 
 def get_args():
     args = argparse.ArgumentParser()
     args.add_argument('--dataset', choices=['sample','DocVQA'],default='sample')
     return args.parse_args()
+
 def main():
     args = get_args()
     assert torch.cuda.is_available()
@@ -145,14 +177,7 @@ def main():
 
     m3rag = M3DOCRAG()
     m3rag.load_qa_model()
-    if args.dataset == 'sample':
-        query = 'What is the primary goal of the Transformer model proposed in this paper?'
-    else:
-        query = ""
-    retrieved_docs = doc_embedding.retrieve(query=query, k=1)
-    output_text = m3rag.generate_qa(query=query,retrieved_docs=retrieved_docs)
-    print(f"Answer: {output_text}")
-        
+    m3rag.m3docrag_chat(doc_embedding)
 
 if __name__=='__main__':
     main()
